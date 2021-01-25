@@ -21,8 +21,11 @@ except ImportError:
     quit()
 
 path = os.getcwd()
-config_path = os.path.expanduser("~") +"/.local/share/lkfm.conf"
+config_path = f'{os.path.expanduser("~")}/.local/share/lkfm.conf'
 sec_global = "global"
+
+#restFiles = [os.path.join(d[0], f) for d in os.walk(".") if not "_test" in d[0]
+#             for f in d[2] if f.endswith(".rst")]
 
 def createParser ():
     parser = argparse.ArgumentParser(prog="lkfm",
@@ -34,11 +37,27 @@ def createParser ():
     parent_group.add_argument('file', type=str,nargs='*', help='Имя файла')
     return parser
 
+def read_data(name):
+    try:
+        with open(name,'r', encoding='cp1251') as fin:
+            return fin.readlines()
+    except Exception:
+        print("Произошла ошибка считывания данных книг")
+        quit();
+
+def write_data(name, data):
+    try:
+        with open(name,'w', encoding='cp1251') as fout:
+            fout.writelines(data)
+    except Exception:
+        print("Произошла ошибка записи данных книг")
+        quit();
+
 def create_file_list():
     files = []
     dirs = []
     for entry in os.scandir(path):
-        if not entry.name.startswith('.') and entry.name.startswith('BOOK_'):
+        if entry.name.startswith('BOOK_'):
             if entry.is_file() and entry.name.endswith(".lgk") and len(entry.name) == 12:
                 files.append(entry.name)
             if entry.is_dir() and len(entry.name) == 8:
@@ -49,22 +68,14 @@ def create_file_list():
 
 def list_book():
     flist = create_file_list()
-    indx = 1
-    for fname in flist[1]:
-        try:
-            f = open(fname, "r",encoding='cp1251')
-        except Exception:
-            print("Произошла ошибка считывания данных книг")
-            quit();
-        lines = f.readlines()
-        f.close()
+    for indx, fname in enumerate(flist[1]):
+        lines = read_data(fname)
         for s in lines:
             if (s.startswith("#Title=")):
-                item_p2 = s[7:len(s) - 1]
+                item_p2 = s[7:-1]
             if (s.startswith("#Author=")):
-                item_p1 = s[8:len(s) - 1]
-        print(str(indx) + ". " + item_p1 + " - " + item_p2)
-        indx+=1
+                item_p1 = s[8:-1]
+        print(f"{indx}. {item_p1} - {item_p2}")
 
 def remove_book(dlist):
     flist = create_file_list()
@@ -78,19 +89,14 @@ def remove_book(dlist):
                 except Exception:
                     print("Ошибка удаления книги")
             else:
-                print("Такого номера книги не существует: " + str(num))
+                print(f"Такого номера книги не существует: {num}")
         else:
             print("Введите номер удаляемой книги")
 
 def clean_book():
     flist = create_file_list()
-    flist1 = []
-    dlist = []
-    for felem in flist[1]:
-        flist1.append(felem[:8])
-    for fdir in flist[0]:
-        if not (fdir in flist1):
-            dlist.append(fdir)
+    flist1 = [felem[:8] for felem in flist[1]]
+    dlist = [fdir for fdir in flist[0] if not (fdir in flist1)]
     if dlist != []:
         for d in dlist:
             shutil.rmtree(d , ignore_errors=True)
@@ -105,36 +111,24 @@ def add_book(alist):
     for i in alist:
         flist = create_file_list()
         for te in range(1,1000):
-            s = 'BOOK_%(num)03d'%{"num":te}
+            s = f"BOOK_{te:03d}"
             if not (s in flist[0]):
                 break
         print("Распаковка")
         patoolib.extract_archive(i,outdir=tmp)
-        fname = tmp+"/BOOK_001.lgk"
-        try:
-            f = open(fname, "r",encoding='cp1251')
-        except Exception:
-            print("Произошла ошибка считывания данных книг")
-            quit();
-        lines = f.readlines()
-        f.close()
+        fname = f"{tmp}/BOOK_001.lgk"
+        lines = read_data(fname)
         wlines = []
         for s1 in lines:
             if s1.startswith("BOOK_001"):
                 s2 = s1.replace("BOOK_001",s)
             else:
                 s2 = s1
-            wlines.append(s2[:len(s2)-1]+"\r\n")
-        try:
-            f = open(fname, "w",encoding='cp1251')
-        except Exception:
-            print("Произошла ошибка записи данных книг")
-            quit();
-        f.writelines(wlines)
-        f.close()
+            wlines.append(f"{s2[:len(s2)-1]}\r\n")
+        write_data(fname, wlines)
         print("Копирование")
-        shutil.move(tmp+"/BOOK_001/",path+"/"+s+"/")
-        shutil.move(tmp+"/BOOK_001.lgk",path+"/"+s+".lgk")
+        shutil.move(f"{tmp}/BOOK_001/", f"{path}/{s}/")
+        shutil.move(f"{tmp}/BOOK_001.lgk", f"{path}/{s}.lgk")
         print("Книга записана")
     shutil.rmtree(tmp , ignore_errors=True)
 
@@ -163,7 +157,7 @@ def load_work_dir():
 def clear_config():
     if os.path.exists(config_path):
         os.remove(config_path)
-        
+
 def main():
     if (len(sys.argv)  < 2 ):
         parser.print_help()

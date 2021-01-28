@@ -9,16 +9,6 @@ import shutil
 import tempfile
 import subprocess
 
-try:
-    import patoolib
-except ImportError:
-    print('Для для работы скрипта необходима библиотека patoolib и программа unrar')
-    print('Чтобы установить patoolib наберите \'pip3 install patool\'')
-    quit()
-
-#TODO Сделать запаковку книг с карты в архивы
-#TODO Избавиться от patoolib
-
 path = os.getcwd()
 config_path = f'{os.path.expanduser("~")}/.local/share/lkfm.conf'
 
@@ -62,6 +52,29 @@ def write_data(name, data):
     except Exception:
         print('Произошла ошибка записи данных книг')
         quit();
+
+def get_unpack_cmd():
+    prog_test = subprocess.getoutput('which unrar')
+    if not (prog_test == ''):
+        return f'{prog_test} x -y '
+    prog_test = subprocess.getoutput('which 7z')
+    if not (prog_test == ''):
+        return f'{prog_test} x -y '
+    prog_test = subprocess.getoutput('which rar')
+    if not (prog_test == ''):
+        return f'{prog_test} x -y '
+    print('Для работы lkrm требуется установленный unrar или p7zip-rar или rar')
+    quit()
+
+def get_pack_cmd():
+    prog_test = subprocess.getoutput('which rar')
+    if not (prog_test == ''):
+        return f'{prog_test} a -r -m5 -y -- '
+    #prog_test = subprocess.getoutput('which 7za')
+    #if not (prog_test == ''):
+    #    return f'{prog_test} a -y -mx9 '
+    print('Для работы lkrm требуется установленный rar')
+    quit()
 
 def create_file_list():
     files = []
@@ -148,7 +161,7 @@ def pack_book(plist):
             a_path = f'{tmp}/{item_p1} - {item_p2}.rar'
             print('Упаковка')
             try:
-                retcode = subprocess.call(f'/usr/bin/rar a -r -m5 -- \"{a_path}\" BOOK_001.lgk BOOK_001/ > /dev/null',cwd = b_path, shell=True)
+                retcode = subprocess.call(f'{get_pack_cmd()} "{a_path}" BOOK_001.lgk BOOK_001/ > /dev/null',cwd = b_path, shell=True)
                 if retcode < 0:
                     print("Процесс прерван сигналом: ", -retcode, file=sys.stderr)
             except OSError as e:
@@ -183,7 +196,13 @@ def add_book(alist):
             if not (s in flist[0]):
                 break
         print(f'Распаковка книги {i}')
-        patoolib.extract_archive(i,outdir=tmp,verbosity=-1)
+        try:
+            retcode = subprocess.call(f'{get_unpack_cmd()} "{os.getcwd()}/{i}" >/dev/null',cwd=tmp, shell=True)
+            if retcode < 0:
+                print("Процесс прерван сигналом: ", -retcode, file=sys.stderr)
+        except OSError as e:
+            print("Выполнение невозможно: ", e, file=sys.stderr)
+            quit()
         fname = f'{tmp}/BOOK_001.lgk'
         lines = read_data(fname)
         wlines = []
